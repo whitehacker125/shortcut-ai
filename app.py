@@ -63,30 +63,27 @@ if user_email:
                                 # 1. Audio laden mit aggressivem Anti-Bot-Bypass
                                 st.write("⏳ Extrahiere Tonspur (Anti-Sperren-Modus)...")
                                 ydl_opts_audio = {
-                                    'format': 'bestaudio/best', 
-                                    'outtmpl': 'temp_audio.%(ext)s',
-                                    'postprocessors': [{
-                                        'key': 'FFmpegExtractAudio',
-                                        'preferredcodec': 'm4a',
-                                    }],
-                                    'noplaylist': True,
-                                    'overwrites': True,
-                                    'nocheckcertificate': True,
-                                    'source_address': '0.0.0.0',
-                                    # Neuer Profitrick: Wir weisen yt-dlp an, einen echten Chrome-Browser zu imitieren
-                                    'http_headers': {
-                                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                                        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-                                        'Accept-Language': 'en-US,en;q=0.5',
-                                        'Sec-Fetch-Mode': 'navigate',
-                                    },
-                                    'extractor_args': {
-                                        'youtube': {
-                                            'player_client': ['web', 'tv'],
-                                            'player_js_version': 'actual'
-                                        }
-                                    },
-                                }
+    'format': 'bestaudio/best', 
+    'outtmpl': 'temp_audio.%(ext)s',
+    'postprocessors': [{
+        'key': 'FFmpegExtractAudio',
+        'preferredcodec': 'm4a',
+    }],
+    'noplaylist': True,
+    'overwrites': True,
+    'nocheckcertificate': True,
+    'source_address': '0.0.0.0',
+    'http_headers': {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15',
+    },
+    'extractor_args': {
+        'youtube': {
+            # WICHTIG: -tv verbannt den DRM-Client, wir weichen auf safari & embedded aus
+            'player_client': ['default', '-tv', 'web_safari', 'web_embedded'],
+            'player_js_version': 'actual'
+        }
+    },
+}
                                 with yt_dlp.YoutubeDL(ydl_opts_audio) as ydl:
                                     ydl.download([video_url])
                                 
@@ -138,25 +135,24 @@ if user_email:
                                 # 3. Video laden mit aggressivem Anti-Bot-Bypass
                                 st.write("📥 Lade Video-Spur herunter...")
                                 ydl_opts_video = {
-                                    'format': 'best[ext=mp4]/best',
-                                    'outtmpl': video_filename,
-                                    'noplaylist': True,
-                                    'overwrites': True,
-                                    'nocheckcertificate': True,
-                                    'source_address': '0.0.0.0',
-                                    'http_headers': {
-                                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                                        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-                                        'Accept-Language': 'en-US,en;q=0.5',
-                                        'Sec-Fetch-Mode': 'navigate',
-                                    },
-                                    'extractor_args': {
-                                        'youtube': {
-                                            'player_client': ['web', 'tv'],
-                                            'player_js_version': 'actual'
-                                        }
-                                    },
-                                }
+    'format': 'bestvideo[height<=1080]+bestaudio/best[height<=1080]/best',
+    'outtmpl': video_filename,
+    'merge_output_format': 'mp4',
+    'noplaylist': True,
+    'overwrites': True,
+    'nocheckcertificate': True,
+    'source_address': '0.0.0.0',
+    'http_headers': {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15',
+    },
+    'extractor_args': {
+        'youtube': {
+            # Gleiche DRM-Abwehr wie beim Audio-Download
+            'player_client': ['default', '-tv', 'web_safari', 'web_embedded'],
+            'player_js_version': 'actual'
+        }
+    },
+}
                                 with yt_dlp.YoutubeDL(ydl_opts_video) as ydl:
                                     ydl.download([video_url])
 
