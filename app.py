@@ -4,7 +4,6 @@ import os
 import google.genai as genai
 import subprocess
 import re
-# Import für die Google Sheets Verbindung
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 
@@ -27,22 +26,17 @@ st.write("### 🔑 Anmeldung")
 user_email = st.text_input("Trage deine E-Mail-Adresse ein, um deine 2 Gratis-Videos freizuschalten:", placeholder="name@beispiel.de").strip().lower()
 
 if user_email:
-    # Überprüfen, ob die E-Mail ein gültiges Format hat
     if not re.match(r"[^@]+@[^@]+\.[^@]+", user_email):
         st.error("Bitte gib eine gültige E-Mail-Adresse ein!")
     else:
         try:
-            # Verbindung zum Google Sheet herstellen
             conn = st.connection("gsheets", type=GSheetsConnection)
-            df = conn.read(ttl=0) # ttl=0 sorgt dafür, dass die Daten immer live geladen werden
+            df = conn.read(ttl=0)
             
-            # Überprüfen, ob der Nutzer schon in der Tabelle existiert
             if user_email in df['email'].values:
-                # Nutzer existiert -> verbleibende Videos auslesen
                 user_row = df[df['email'] == user_email]
                 videos_left = int(user_row['videos_left'].values[0])
             else:
-                # Neuer Nutzer -> Im Datensatz mit 2 Videos hinzufügen
                 new_user = pd.DataFrame([{"email": user_email, "videos_left": 2}])
                 df = pd.concat([df, new_user], ignore_index=True)
                 conn.update(data=df)
@@ -50,11 +44,9 @@ if user_email:
                 st.balloons()
                 st.success(f"Willkommen! Deine E-Mail wurde registriert. Du hast **{videos_left} Gratis-Videos** übrig.")
 
-            # Status-Anzeige für den Nutzer
             if videos_left > 0:
                 st.info(f"🎈 Du hast noch **{videos_left} von 2** Gratis-Videos übrig.")
                 
-                # --- HIER STARTET DIE EIGENTLICHE APP ---
                 st.markdown("---")
                 video_url = st.text_input("🔗 Dein YouTube-Video-Link:", placeholder="https://www.youtube.com/watch?v=...")
 
@@ -68,8 +60,8 @@ if user_email:
                             output_filename = "output_short.mp4"
                             
                             try:
-                                # 1. Audio laden (optimierte Web/TV-Tarnung)
-                                st.write("⏳ Extrahiere Tonspur...")
+                                # 1. Audio laden mit aggressivem Anti-Bot-Bypass
+                                st.write("⏳ Extrahiere Tonspur (Anti-Sperren-Modus)...")
                                 ydl_opts_audio = {
                                     'format': 'bestaudio/best', 
                                     'outtmpl': 'temp_audio.%(ext)s',
@@ -80,12 +72,17 @@ if user_email:
                                     'noplaylist': True,
                                     'overwrites': True,
                                     'nocheckcertificate': True,
-                                    # Verhindert IPv6-Sperren von YouTube
-                                    'source_address': '0.0.0.0', 
-                                    # Nutzt den web/tv Client-Mix statt der gesperrten Mobile-Variante
+                                    'source_address': '0.0.0.0',
+                                    # Neuer Profitrick: Wir weisen yt-dlp an, einen echten Chrome-Browser zu imitieren
+                                    'http_headers': {
+                                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                                        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                                        'Accept-Language': 'en-US,en;q=0.5',
+                                        'Sec-Fetch-Mode': 'navigate',
+                                    },
                                     'extractor_args': {
                                         'youtube': {
-                                            'player_client': ['default', '-android_sdkless', 'web_embedded', 'web', 'tv'],
+                                            'player_client': ['web', 'tv'],
                                             'player_js_version': 'actual'
                                         }
                                     },
@@ -138,21 +135,24 @@ if user_email:
 
                                 duration = end_sec - start_sec
 
-                                # 3. Video laden (optimierte Web/TV-Tarnung)
+                                # 3. Video laden mit aggressivem Anti-Bot-Bypass
                                 st.write("📥 Lade Video-Spur herunter...")
                                 ydl_opts_video = {
-                                    'format': 'bestvideo[height<=1080]+bestaudio/best[height<=1080]/best',
+                                    'format': 'best[ext=mp4]/best',
                                     'outtmpl': video_filename,
-                                    'merge_output_format': 'mp4',
                                     'noplaylist': True,
                                     'overwrites': True,
                                     'nocheckcertificate': True,
-                                    # Verhindert IPv6-Sperren von YouTube
                                     'source_address': '0.0.0.0',
-                                    # Nutzt den gleichen web/tv Client-Mix
+                                    'http_headers': {
+                                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                                        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                                        'Accept-Language': 'en-US,en;q=0.5',
+                                        'Sec-Fetch-Mode': 'navigate',
+                                    },
                                     'extractor_args': {
                                         'youtube': {
-                                            'player_client': ['default', '-android_sdkless', 'web_embedded', 'web', 'tv'],
+                                            'player_client': ['web', 'tv'],
                                             'player_js_version': 'actual'
                                         }
                                     },
@@ -209,7 +209,6 @@ if user_email:
                                         try: os.remove(temp_file)
                                         except: pass
             else:
-                # --- DIE PAYWALL ---
                 st.markdown("---")
                 st.error("⚠️ **Dein Gratis-Limit ist erreicht!**")
                 st.markdown(
