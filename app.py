@@ -68,11 +68,16 @@ if user_email:
                             output_filename = "output_short.mp4"
                             
                             try:
-                                # 1. Audio laden (mit mobiler iOS/Android Tarnung gegen Blockaden)
+                                # 1. Audio laden (viel flexibleres Format-Fallback)
                                 st.write("⏳ Extrahiere Tonspur...")
                                 ydl_opts_audio = {
-                                    'format': 'bestaudio[ext=m4a]/bestaudio', 
+                                    # Er nimmt das beste Audio und konvertiert es im Zweifel automatisch zu m4a
+                                    'format': 'bestaudio/best', 
                                     'outtmpl': 'temp_audio.%(ext)s',
+                                    'postprocessors': [{
+                                        'key': 'FFmpegExtractAudio',
+                                        'preferredcodec': 'm4a',
+                                    }],
                                     'noplaylist': True,
                                     'overwrites': True,
                                     'nocheckcertificate': True,
@@ -126,11 +131,13 @@ if user_email:
 
                                 duration = end_sec - start_sec
 
-                                # 3. Video laden (ebenfalls getarnt)
+                                # 3. Video laden (ebenfalls flexibler mit automatischem Fallback)
                                 st.write("📥 Lade Video-Spur herunter...")
                                 ydl_opts_video = {
-                                    'format': 'best[ext=mp4]', 
+                                    # Nimmt das beste Video bis max. 1080p Auflösung (spart Traffic) und konvertiert zu mp4
+                                    'format': 'bestvideo[height<=1080]+bestaudio/best[height<=1080]/best',
                                     'outtmpl': video_filename,
+                                    'merge_output_format': 'mp4',
                                     'noplaylist': True,
                                     'overwrites': True,
                                     'nocheckcertificate': True,
@@ -182,6 +189,7 @@ if user_email:
                                 st.error(f"Fehler bei der Verarbeitung: {e}")
                             
                             finally:
+                                # Sicheres Löschen aller temporären Dateien (auch der konvertierten Formate)
                                 for temp_file in [audio_filename, video_filename, output_filename]:
                                     if os.path.exists(temp_file):
                                         try: os.remove(temp_file)
