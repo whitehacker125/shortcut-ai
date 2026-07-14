@@ -4,13 +4,13 @@ import os
 import google.genai as genai
 import subprocess
 import re
-from static_ffmpeg import run
 # Import für die Google Sheets Verbindung
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 
 # FFmpeg-Pfad registrieren
-ffmpeg_bin, ffprobe_bin = run.get_or_fetch_platform_executables_else_raise()
+# Auf Linux (Streamlit Cloud) ist FFmpeg direkt im Systempfad registriert
+ffmpeg_bin = "ffmpeg"
 
 # --- DEIN GEHEIMER API-KEY (Wird vor den Nutzern versteckt!) ---
 # Wir holen uns den Key gleich über die sicheren "Secrets" von Streamlit im Internet!
