@@ -68,10 +68,9 @@ if user_email:
                             output_filename = "output_short.mp4"
                             
                             try:
-                                # 1. Audio laden (viel flexibleres Format-Fallback)
+                                # 1. Audio laden (optimierte Web/TV-Tarnung)
                                 st.write("⏳ Extrahiere Tonspur...")
                                 ydl_opts_audio = {
-                                    # Er nimmt das beste Audio und konvertiert es im Zweifel automatisch zu m4a
                                     'format': 'bestaudio/best', 
                                     'outtmpl': 'temp_audio.%(ext)s',
                                     'postprocessors': [{
@@ -81,7 +80,15 @@ if user_email:
                                     'noplaylist': True,
                                     'overwrites': True,
                                     'nocheckcertificate': True,
-                                    'extractor_args': {'youtube': {'player_client': ['ios', 'android']}},
+                                    # Verhindert IPv6-Sperren von YouTube
+                                    'source_address': '0.0.0.0', 
+                                    # Nutzt den web/tv Client-Mix statt der gesperrten Mobile-Variante
+                                    'extractor_args': {
+                                        'youtube': {
+                                            'player_client': ['default', '-android_sdkless', 'web_embedded', 'web', 'tv'],
+                                            'player_js_version': 'actual'
+                                        }
+                                    },
                                 }
                                 with yt_dlp.YoutubeDL(ydl_opts_audio) as ydl:
                                     ydl.download([video_url])
@@ -131,17 +138,24 @@ if user_email:
 
                                 duration = end_sec - start_sec
 
-                                # 3. Video laden (ebenfalls flexibler mit automatischem Fallback)
+                                # 3. Video laden (optimierte Web/TV-Tarnung)
                                 st.write("📥 Lade Video-Spur herunter...")
                                 ydl_opts_video = {
-                                    # Nimmt das beste Video bis max. 1080p Auflösung (spart Traffic) und konvertiert zu mp4
                                     'format': 'bestvideo[height<=1080]+bestaudio/best[height<=1080]/best',
                                     'outtmpl': video_filename,
                                     'merge_output_format': 'mp4',
                                     'noplaylist': True,
                                     'overwrites': True,
                                     'nocheckcertificate': True,
-                                    'extractor_args': {'youtube': {'player_client': ['ios', 'android']}},
+                                    # Verhindert IPv6-Sperren von YouTube
+                                    'source_address': '0.0.0.0',
+                                    # Nutzt den gleichen web/tv Client-Mix
+                                    'extractor_args': {
+                                        'youtube': {
+                                            'player_client': ['default', '-android_sdkless', 'web_embedded', 'web', 'tv'],
+                                            'player_js_version': 'actual'
+                                        }
+                                    },
                                 }
                                 with yt_dlp.YoutubeDL(ydl_opts_video) as ydl:
                                     ydl.download([video_url])
@@ -189,7 +203,7 @@ if user_email:
                                 st.error(f"Fehler bei der Verarbeitung: {e}")
                             
                             finally:
-                                # Sicheres Löschen aller temporären Dateien (auch der konvertierten Formate)
+                                # Sicheres Löschen aller temporären Dateien
                                 for temp_file in [audio_filename, video_filename, output_filename]:
                                     if os.path.exists(temp_file):
                                         try: os.remove(temp_file)
