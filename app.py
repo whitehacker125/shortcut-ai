@@ -8,12 +8,10 @@ import re
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 
-# FFmpeg-Pfad registrieren
 # Auf Linux (Streamlit Cloud) ist FFmpeg direkt im Systempfad registriert
 ffmpeg_bin = "ffmpeg"
 
-# --- DEIN GEHEIMER API-KEY (Wird vor den Nutzern versteckt!) ---
-# Wir holen uns den Key gleich über die sicheren "Secrets" von Streamlit im Internet!
+# Wir holen uns den Key sicher über die Secrets von Streamlit
 DEIN_GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
 
 st.set_page_config(page_title="ShortCut AI", page_icon="🎬", layout="centered")
@@ -70,25 +68,27 @@ if user_email:
                             output_filename = "output_short.mp4"
                             
                             try:
-                                # 1. Audio laden
+                                # 1. Audio laden (mit mobiler iOS/Android Tarnung gegen Blockaden)
                                 st.write("⏳ Extrahiere Tonspur...")
                                 ydl_opts_audio = {
                                     'format': 'bestaudio[ext=m4a]/bestaudio', 
                                     'outtmpl': 'temp_audio.%(ext)s',
                                     'noplaylist': True,
                                     'overwrites': True,
+                                    'nocheckcertificate': True,
+                                    'extractor_args': {'youtube': {'player_client': ['ios', 'android']}},
                                 }
                                 with yt_dlp.YoutubeDL(ydl_opts_audio) as ydl:
                                     ydl.download([video_url])
                                 
-                                # 2. Gemini 3.5 Analyse (Nutzt jetzt deinen versteckten Key!)
+                                # 2. Gemini 3.5 Analyse
                                 st.write("🧠 KI sucht das Highlight und schreibt die Caption...")
                                 client = genai.Client(api_key=DEIN_GEMINI_API_KEY)
                                 audio_file = client.files.upload(file=audio_filename)
                                 
                                 prompt = (
                                     "Analysiere dieses Audio. Finde die absolut beste Sequenz (Länge exakt zwischen 30 und 50 Sekunden).\n"
-                                    "Generiere zusätzlich eine extrem packende, virale Social-Media-Beschreibung (Caption) mit Emojis für TikTok/Reels/Shorts "
+                                    "Generiere zusätzlich eine extrem packende, virale Social-Media-Beschreibung (caption) mit Emojis für TikTok/Reels/Shorts "
                                     "sowie 5-8 hochrelevante, virale Hashtags.\n\n"
                                     "Antworte mir AUSSCHLIESSLICH im folgenden Format, ersetze die Werte in den Klammern. Keine anderen Sätze drumherum!\n"
                                     "START: [Startsekunde als reine Zahl, z.B. 45]\n"
@@ -126,18 +126,20 @@ if user_email:
 
                                 duration = end_sec - start_sec
 
-                                # 3. Video laden
+                                # 3. Video laden (ebenfalls getarnt)
                                 st.write("📥 Lade Video-Spur herunter...")
                                 ydl_opts_video = {
                                     'format': 'best[ext=mp4]', 
                                     'outtmpl': video_filename,
                                     'noplaylist': True,
                                     'overwrites': True,
+                                    'nocheckcertificate': True,
+                                    'extractor_args': {'youtube': {'player_client': ['ios', 'android']}},
                                 }
                                 with yt_dlp.YoutubeDL(ydl_opts_video) as ydl:
                                     ydl.download([video_url])
 
-                                # 4. FFmpeg Schnitt & Zoom
+                                # 4. FFmpeg Schnitt & Zoom (auf Linux)
                                 st.write("✂️ Schneide Video und zoome auf 9:16 Hochformat...")
                                 ffmpeg_command = [
                                     ffmpeg_bin, "-y",
@@ -193,7 +195,6 @@ if user_email:
                     "Um ShortCut AI unbegrenzt weiterzunutzen und noch mehr virale Clips zu erstellen, "
                     "sichere dir jetzt deinen Premium-Zugang!"
                 )
-                # Hier kannst du später deinen Stripe- oder Copecart-Link einfügen
                 st.link_button("💎 Jetzt unbegrenzten Premium-Zugang sichern", "https://deine-seite.de/checkout", type="primary")
 
         except Exception as database_error:
