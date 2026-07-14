@@ -1,0 +1,6 @@
+streamlit
+google-genai
+yt-dlp
+st-gsheets-connection
+static-ffmpeg
+pandas
