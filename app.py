@@ -91,6 +91,7 @@ if user_email:
                                     ytdl_cmd = [
                                         "yt-dlp",
                                         "--proxy", f"http://{proxy}",
+                                        "--no-check-certificate",  # Ignoriert SSL-Fehler selbstsignierter Proxys
                                         "-f", "bestvideo[ext=mp4][height<=720]+bestaudio[ext=m4a]/best[ext=mp4]/best",
                                         "--merge-output-format", "mp4",
                                         "--extractor-args", "youtube:player-client=web_embedded,web",
@@ -102,7 +103,7 @@ if user_email:
                                     
                                     if os.path.exists(video_filename) and os.path.getsize(video_filename) > 1000000:
                                         download_success = True
-                                        st.write("✅ Verbindung erfolgreich hergestellt!")
+                                        st.write("✅ Verbindung erfolgreich hergestellt und Video geladen!")
                                         break
                                     else:
                                         error_details = result.stderr if result.stderr else "Unbekannter Fehler"
@@ -112,6 +113,7 @@ if user_email:
                                     st.write("🔄 Letzter Rettungsversuch: Direktdownload ohne Proxy...")
                                     fallback_cmd = [
                                         "yt-dlp",
+                                        "--no-check-certificate",  # Ignoriert SSL-Fehler auch hier sicherheitshalber
                                         "-f", "best[ext=mp4]",
                                         "-o", video_filename,
                                         video_url.strip()
