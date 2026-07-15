@@ -66,13 +66,19 @@ if user_email:
                             output_filename = "output_short.mp4"
                             
                             try:
-                                # 1. Video-ID aus der URL extrahieren
-                                video_id_match = re.search(r"(?:v=|\/v\/|embed\/|youtu\.be\/|\/shorts\/|^)([^#\&\?^\/]+)", video_url)
-                                if not video_id_match:
-                                    raise Exception("Ungültige YouTube-URL. ID konnte nicht extrahiert werden.")
-                                video_id = video_id_match.group(1)
+                                # 1. Video-ID absolut sicher im Python-Format extrahieren
+                                clean_url = video_url.strip()
+                                video_id = None
                                 
-                                st.write("📥 Fordere optimierten Video-Stream über High-Speed-API an...")
+                                # Sucht nach der typischen 11-stelligen ID nach bekannten YouTube-Mustern
+                                match = re.search(r"(?:v=|\/v\/|embed\/|youtu\.be\/|\/shorts\/|shorts\?video_id=)([a-zA-Z0-9_-]{11})", clean_url)
+                                if match:
+                                    video_id = match.group(1)
+                                
+                                if not video_id or len(video_id) != 11:
+                                    raise Exception(f"Die ID konnte nicht korrekt extrahiert werden (erhalten: '{video_id}'). Bitte kopiere den Link direkt aus der Adresszeile deines Browsers.")
+                                
+                                st.write(f"📥 Fordere optimierten Video-Stream an (ID: {video_id})...")
                                 
                                 # Savetube API abfragen für 720p/1080p MP4 Direktlinks
                                 api_url = f"https://api.v02.savetube.me/info/{video_id}"
@@ -93,7 +99,6 @@ if user_email:
                                 # Wir suchen nach dem besten MP4-Stream mit Audio (z.B. 720p oder 1080p)
                                 download_url = None
                                 for stream in video_streams:
-                                    # "url" muss da sein und wir bevorzugen Streams, die direkt Audio & Video kombiniert haben
                                     if stream.get("url") and stream.get("quality") in ["720p", "1080p", "480p", "360p"]:
                                         download_url = stream.get("url")
                                         break
