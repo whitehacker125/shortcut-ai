@@ -72,42 +72,43 @@ if user_email:
                                     raise Exception("Ungültige YouTube-URL. ID konnte nicht extrahiert werden.")
                                 video_id = video_id_match.group(1)
                                 
-                                st.write("📥 Lade Video-Stream über dezentrales Invidious-Netzwerk...")
+                                st.write("📥 Fordere optimierten Video-Stream über High-Speed-API an...")
                                 
-                                # Wir fragen eine öffentliche, stabile Invidious-Instanz ab
-                                invidious_api_url = f"https://invidious.nerdvpn.de/api/v1/videos/{video_id}"
-                                response = requests.get(invidious_api_url, timeout=15)
+                                # Savetube API abfragen für 720p/1080p MP4 Direktlinks
+                                api_url = f"https://api.v02.savetube.me/info/{video_id}"
+                                response = requests.get(api_url, timeout=20)
                                 
                                 if response.status_code != 200:
-                                    # Fallback-Instanz falls die erste kurz offline ist
-                                    invidious_api_url = f"https://yewtu.be/api/v1/videos/{video_id}"
-                                    response = requests.get(invidious_api_url, timeout=15)
+                                    raise Exception("Download-Schnittstelle antwortet nicht. Bitte versuche es gleich noch einmal.")
                                     
-                                if response.status_code != 200:
-                                    raise Exception("Video-Stream-Server aktuell überlastet. Bitte versuche es gleich noch einmal.")
+                                api_data = response.json()
+                                if not api_data.get("status"):
+                                    raise Exception("Video konnte von der API nicht geladen werden. Ist es privat oder gesperrt?")
                                     
-                                video_data = response.json()
-                                format_streams = video_data.get("formatStreams", [])
-                                
-                                if not format_streams:
-                                    raise Exception("Keine passenden Video-Streams für dieses Video gefunden.")
+                                # Wir holen uns die Liste der Video-Streams
+                                video_streams = api_data.get("data", {}).get("video_formats", [])
+                                if not video_streams:
+                                    raise Exception("Keine passenden MP4-Videoformate gefunden.")
                                     
-                                # Wir suchen den besten MP4-Stream (meistens 720p, perfekt für Shorts)
+                                # Wir suchen nach dem besten MP4-Stream mit Audio (z.B. 720p oder 1080p)
                                 download_url = None
-                                for stream in format_streams:
-                                    if "mp4" in stream.get("container", ""):
+                                for stream in video_streams:
+                                    # "url" muss da sein und wir bevorzugen Streams, die direkt Audio & Video kombiniert haben
+                                    if stream.get("url") and stream.get("quality") in ["720p", "1080p", "480p", "360p"]:
                                         download_url = stream.get("url")
                                         break
-                                
+                                        
                                 if not download_url:
-                                    # Letzter Versuch: Nimm einfach den allerersten verfügbaren Stream
-                                    download_url = format_streams[0].get("url")
+                                    # Fallback: Nimm den ersten verfügbaren Stream mit URL
+                                    download_url = next((s.get("url") for s in video_streams if s.get("url")), None)
                                     
                                 if not download_url:
                                     raise Exception("Direkter Video-Download-Link konnte nicht ermittelt werden.")
-                                    
-                                # Herunterladen der Datei auf unseren Streamlit-Server
-                                r = requests.get(download_url, stream=True)
+                                
+                                st.write("📥 Lade Videodatei herunter...")
+                                # Herunterladen der Datei auf unseren Streamlit-Server mit Timeout-Schutz
+                                r = requests.get(download_url, stream=True, timeout=60)
+                                r.raise_for_status()
                                 with open(video_filename, 'wb') as f:
                                     for chunk in r.iter_content(chunk_size=1024*1024):
                                         if chunk:
@@ -118,7 +119,7 @@ if user_email:
                                 audio_extract_cmd = [
                                     ffmpeg_bin, "-y",
                                     "-i", video_filename,
-                                    "-vn", "-acodec", "aac",  # Zuverlässiges AAC-Audio extrahieren
+                                    "-vn", "-acodec", "aac",
                                     audio_filename
                                 ]
                                 subprocess.run(audio_extract_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
