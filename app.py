@@ -70,16 +70,18 @@ if user_email:
                                 st.write("📥 Lade Video sicher über API herunter (Bypassing Blocks)...")
                                 
                                 # Cobalt API-Anfrage stellen
-                                cobalt_url = "https://api.cobalt.tools/api/json"
+                                # Die neue Cobalt API v10 nutzen
+                                cobalt_url = "https://api.cobalt.tools/"
                                 headers = {
-                                    "Accept": "application/json",
-                                    "Content-Type": "application/json"
+                                     "Accept": "application/json",
+                                     "Content-Type": "application/json"
                                 }
-                                # Wir fordern das Video in max. 1080p an
+                                # Das neue Payload-Format von Cobalt v10
                                 payload = {
-                                    "url": video_url,
-                                    "vQuality": "1080"
-                                }
+                                "url": video_url,
+                                 "videoQuality": "1080",  # Neues Feld für v10
+                                 "downloadMode": "auto"   # Standard Download-Modus
+                        }
                                 
                                 response = requests.post(cobalt_url, json=payload, headers=headers)
                                 response_data = response.json()
