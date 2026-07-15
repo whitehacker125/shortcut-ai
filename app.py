@@ -66,46 +66,59 @@ if user_email:
                             output_filename = "output_short.mp4"
                             
                             try:
-                                # 1. Audio & Video über Cobalt API anfordern
-                                st.write("📥 Lade Video sicher über API herunter (Bypassing Blocks)...")
+                                # 1. Video-ID aus der URL extrahieren
+                                video_id_match = re.search(r"(?:v=|\/v\/|embed\/|youtu\.be\/|\/shorts\/|^)([^#\&\?^\/]+)", video_url)
+                                if not video_id_match:
+                                    raise Exception("Ungültige YouTube-URL. ID konnte nicht extrahiert werden.")
+                                video_id = video_id_match.group(1)
                                 
-                                # Cobalt API-Anfrage stellen
-                                # Die neue Cobalt API v10 nutzen
-                                cobalt_url = "https://api.cobalt.tools/"
-                                headers = {
-                                     "Accept": "application/json",
-                                     "Content-Type": "application/json"
-                                }
-                                # Das neue Payload-Format von Cobalt v10
-                                payload = {
-                                "url": video_url,
-                                 "videoQuality": "1080",  # Neues Feld für v10
-                                 "downloadMode": "auto"   # Standard Download-Modus
-                        }
+                                st.write("📥 Lade Video-Stream über dezentrales Invidious-Netzwerk...")
                                 
-                                response = requests.post(cobalt_url, json=payload, headers=headers)
-                                response_data = response.json()
+                                # Wir fragen eine öffentliche, stabile Invidious-Instanz ab
+                                invidious_api_url = f"https://invidious.nerdvpn.de/api/v1/videos/{video_id}"
+                                response = requests.get(invidious_api_url, timeout=15)
                                 
-                                if response.status_code != 200 or response_data.get("status") == "error":
-                                    raise Exception(response_data.get("text", "Unbekannter API-Fehler bei Cobalt."))
+                                if response.status_code != 200:
+                                    # Fallback-Instanz falls die erste kurz offline ist
+                                    invidious_api_url = f"https://yewtu.be/api/v1/videos/{video_id}"
+                                    response = requests.get(invidious_api_url, timeout=15)
+                                    
+                                if response.status_code != 200:
+                                    raise Exception("Video-Stream-Server aktuell überlastet. Bitte versuche es gleich noch einmal.")
+                                    
+                                video_data = response.json()
+                                format_streams = video_data.get("formatStreams", [])
                                 
-                                download_url = response_data.get("url")
+                                if not format_streams:
+                                    raise Exception("Keine passenden Video-Streams für dieses Video gefunden.")
+                                    
+                                # Wir suchen den besten MP4-Stream (meistens 720p, perfekt für Shorts)
+                                download_url = None
+                                for stream in format_streams:
+                                    if "mp4" in stream.get("container", ""):
+                                        download_url = stream.get("url")
+                                        break
+                                
                                 if not download_url:
-                                    raise Exception("Keine Download-URL von der API erhalten.")
-                                
-                                # Herunterladen der Datei vom Cobalt-Spiegelserver auf unseren Streamlit-Server
+                                    # Letzter Versuch: Nimm einfach den allerersten verfügbaren Stream
+                                    download_url = format_streams[0].get("url")
+                                    
+                                if not download_url:
+                                    raise Exception("Direkter Video-Download-Link konnte nicht ermittelt werden.")
+                                    
+                                # Herunterladen der Datei auf unseren Streamlit-Server
                                 r = requests.get(download_url, stream=True)
                                 with open(video_filename, 'wb') as f:
                                     for chunk in r.iter_content(chunk_size=1024*1024):
                                         if chunk:
                                             f.write(chunk)
                                             
-                                # 2. Die Tonspur für Gemini extrahieren (da wir das Video schon haben, extrahieren wir Audio lokal!)
+                                # 2. Die Tonspur für Gemini extrahieren (lokal mit FFmpeg)
                                 st.write("⏳ Extrahiere Tonspur lokal...")
                                 audio_extract_cmd = [
                                     ffmpeg_bin, "-y",
                                     "-i", video_filename,
-                                    "-vn", "-acodec", "copy",
+                                    "-vn", "-acodec", "aac",  # Zuverlässiges AAC-Audio extrahieren
                                     audio_filename
                                 ]
                                 subprocess.run(audio_extract_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
@@ -155,7 +168,7 @@ if user_email:
 
                                 duration = end_sec - start_sec
 
-                                # 4. FFmpeg Schnitt & Zoom (auf Linux)
+                                # 4. FFmpeg Schnitt & Zoom
                                 st.write("✂️ Schneide Video und zoome auf 9:16 Hochformat...")
                                 ffmpeg_command = [
                                     ffmpeg_bin, "-y",
