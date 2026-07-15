@@ -16,14 +16,13 @@ DEIN_GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
 st.set_page_config(page_title="ShortCut AI", page_icon="🎬", layout="centered")
 
 # --- SESSION STATE INITIALISIERUNG ---
-# Hier speichern wir die Ergebnisse ab, damit sie beim Download-Rerun nicht gelöscht werden
 if "generation_results" not in st.session_state:
     st.session_state.generation_results = None
 
 st.title("🎬 ShortCut AI")
 st.subheader("Der intelligente All-in-One Video-zu-Short-Generator")
 
-# Ausführlichere und professionelle Beschreibung des Tools
+# Beschreibung
 st.markdown(
     """
     **ShortCut AI nimmt dir die komplette Arbeit ab:** 
@@ -34,6 +33,13 @@ st.markdown(
 )
 
 st.markdown("---")
+
+# IP-Adresse des Nutzers auslesen
+user_ip = st.context.ip_address
+
+# Fallback für lokale Entwicklung (da st.context.ip_address lokal None ist)
+if user_ip is None:
+    user_ip = "127.0.0.1"
 
 # 1. SCHRITT: E-Mail-Abfrage für das Limit
 st.write("### 🔑 Anmeldung")
@@ -48,20 +54,41 @@ if user_email:
             conn = st.connection("gsheets", type=GSheetsConnection)
             df = conn.read(ttl=0) # Immer live laden
             
-            # Überprüfen, ob der Nutzer schon existiert
-            if user_email in df['email'].values:
-                user_row = df[df['email'] == user_email]
-                videos_left = int(user_row['videos_left'].values[0])
+            # Falls die Spalte 'ip_address' noch nicht im Sheet existiert, legen wir sie an
+            if 'ip_address' not in df.columns:
+                df['ip_address'] = ""
+                conn.update(data=df)
+
+            # --- SICHERHEITS-CHECK: IP-ADRESSE PRÜFEN ---
+            # Wir suchen, ob diese IP-Adresse bereits registriert ist
+            ip_exists = user_ip in df['ip_address'].values
+            email_exists = user_email in df['email'].values
+
+            # Bestimmen der verbleibenden Videos für diesen Nutzer
+            if ip_exists:
+                # IP ist bekannt -> Wir nutzen die verbleibenden Credits dieser IP (Vermeidet E-Mail-Spam!)
+                ip_row = df[df['ip_address'] == user_ip]
+                videos_left = int(ip_row['videos_left'].values[0])
+                
+                # Falls der Nutzer eine neue E-Mail eingibt, aber seine IP gesperrt ist
+                if videos_left <= 0 and not email_exists:
+                    st.warning("🔒 Schutz-Sperre aktiv: Dieses Gerät hat das Limit an Gratis-Videos bereits erreicht.")
+            
+            elif email_exists:
+                # E-Mail existiert schon, aber neue IP (z.B. Mobilfunknetz gewechselt) -> Credits der E-Mail nutzen
+                email_row = df[df['email'] == user_email]
+                videos_left = int(email_row['videos_left'].values[0])
+            
             else:
-                # Neuer Nutzer -> Registrieren
-                new_user = pd.DataFrame([{"email": user_email, "videos_left": 2}])
+                # Komplett neuer Nutzer (weder E-Mail noch IP existieren) -> Registrieren mit 2 Credits
+                new_user = pd.DataFrame([{"email": user_email, "videos_left": 2, "ip_address": user_ip}])
                 df = pd.concat([df, new_user], ignore_index=True)
                 conn.update(data=df)
                 videos_left = 2
                 st.balloons()
                 st.success(f"Willkommen! Deine E-Mail wurde registriert. Du hast **{videos_left} Gratis-Videos** übrig.")
 
-            # Status-Anzeige für den Nutzer
+            # Status-Anzeige & App-Freigabe
             if videos_left > 0:
                 st.info(f"🎈 Du hast noch **{videos_left} von 2** Gratis-Videos übrig.")
                 
@@ -168,10 +195,16 @@ if user_email:
                                     "video_bytes": video_bytes
                                 }
                                 
-                                # Dem Nutzer ein Video abziehen und im Google Sheet speichern
-                                df.loc[df['email'] == user_email, 'videos_left'] = videos_left - 1
+                                # Dem Nutzer ein Video abziehen (Sowohl für die IP als auch die E-Mail)
+                                if ip_exists:
+                                    df.loc[df['ip_address'] == user_ip, 'videos_left'] = videos_left - 1
+                                elif email_exists:
+                                    df.loc[df['email'] == user_email, 'videos_left'] = videos_left - 1
+                                else:
+                                    df.loc[df['email'] == user_email, 'videos_left'] = videos_left - 1
+                                
                                 conn.update(data=df)
-                                st.rerun() # Seite neu laden, um die Ergebnisse aus dem State anzuzeigen
+                                st.rerun()
 
                             except Exception as e:
                                 st.error(f"Fehler bei der Verarbeitung: {e}")
@@ -183,14 +216,13 @@ if user_email:
                                         try: os.remove(temp_file)
                                         except: pass
                 
-                # --- ERGEBNIS-ANZEIGE (Bleibt dank Session State beim Download aktiv!) ---
+                # --- ERGEBNIS-ANZEIGE ---
                 if st.session_state.generation_results is not None:
                     res = st.session_state.generation_results
                     
                     st.markdown("---")
                     st.success("🎉 Dein Short im Hochformat (9:16) ist fertig!")
                     
-                    # Vorschau des fertig generierten Videos anzeigen
                     st.video(res["video_bytes"])
                     
                     st.markdown("### 📝 Textvorlage für deinen Post")
@@ -203,7 +235,6 @@ if user_email:
                     st.info(f"💡 **Warum das viral geht:** {res['begruendung']}")
                     st.markdown("---")
                     
-                    # Download-Button nutzt jetzt die gesicherten Bytes aus dem State
                     st.download_button(
                         label="📥 Short jetzt herunterladen (MP4)",
                         data=res["video_bytes"],
@@ -215,7 +246,7 @@ if user_email:
                 st.markdown("---")
                 st.error("⚠️ **Dein Gratis-Limit ist erreicht!**")
                 st.markdown(
-                    "Du hast deine 2 freien Videos für diesen Account bereits erfolgreich generiert. "
+                    "Du hast deine 2 freien Videos für dieses Gerät oder diese E-Mail bereits erfolgreich generiert. "
                     "Um ShortCut AI unbegrenzt weiterzunutzen und noch mehr virale Clips zu erstellen, "
                     "sichere dir jetzt deinen Premium-Zugang!"
                 )
