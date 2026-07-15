@@ -15,9 +15,23 @@ DEIN_GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
 
 st.set_page_config(page_title="ShortCut AI", page_icon="🎬", layout="centered")
 
+# --- SESSION STATE INITIALISIERUNG ---
+# Hier speichern wir die Ergebnisse ab, damit sie beim Download-Rerun nicht gelöscht werden
+if "generation_results" not in st.session_state:
+    st.session_state.generation_results = None
+
 st.title("🎬 ShortCut AI")
-st.subheader("Der vollautomatische Short-Generator")
-st.write("Erstelle virale Shorts im 9:16 Format aus deinen Videos.")
+st.subheader("Der intelligente All-in-One Video-zu-Short-Generator")
+
+# Ausführlichere und professionelle Beschreibung des Tools
+st.markdown(
+    """
+    **ShortCut AI nimmt dir die komplette Arbeit ab:** 
+    1. **Intelligente Analyse:** Unsere KI durchsucht dein hochgeladenes Video und findet den spannendsten und viralsten Moment.
+    2. **Automatischer Zuschnitt:** Der Clip wird vollautomatisch in das perfekte vertikale **9:16-Format** geschnitten (ideal für TikTok, Instagram Reels & YouTube Shorts).
+    3. **Copywriting & Hashtags:** Du erhältst eine packende, virale Beschreibung (Caption) sowie handverlesene Trend-Hashtags direkt zum Kopieren.
+    """
+)
 
 st.markdown("---")
 
@@ -55,7 +69,7 @@ if user_email:
                 st.markdown("---")
                 st.write("### 📤 Lade dein Video hoch")
                 
-                # Datei-Uploader (Unterstützt MP4, MOV, AVI bis 200MB auf Streamlit)
+                # Datei-Uploader
                 uploaded_file = st.file_uploader("Wähle ein Video von deinem Gerät aus:", type=["mp4", "mov", "avi"])
 
                 if uploaded_file is not None:
@@ -142,39 +156,60 @@ if user_email:
                                 ]
                                 subprocess.run(ffmpeg_command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
                                 
-                                st.success("🎉 Dein Short im Hochformat (9:16) ist fertig!")
+                                # Das fertige Video in den Arbeitsspeicher laden
+                                with open(output_filename, "rb") as video_file:
+                                    video_bytes = video_file.read()
                                 
-                                # Dem Nutzer ein Video abziehen und im Google Sheet speichern!
+                                # Ergebnisse im Session-State sichern
+                                st.session_state.generation_results = {
+                                    "caption": caption,
+                                    "hashtags": hashtags,
+                                    "begruendung": begruendung,
+                                    "video_bytes": video_bytes
+                                }
+                                
+                                # Dem Nutzer ein Video abziehen und im Google Sheet speichern
                                 df.loc[df['email'] == user_email, 'videos_left'] = videos_left - 1
                                 conn.update(data=df)
-                                
-                                # Ergebnisse anzeigen
-                                st.markdown("### 📝 Textvorlage für deinen Post")
-                                st.write("**Beschreibung (Caption):**")
-                                st.code(caption, language="text")
-                                st.write("**Hashtags:**")
-                                st.code(hashtags, language="text")
-                                st.info(f"💡 **Warum das viral geht:** {begruendung}")
-                                st.markdown("---")
-                                
-                                # Download-Button
-                                with open(output_filename, "rb") as file:
-                                    st.download_button(
-                                        label="📥 Short jetzt herunterladen (MP4)",
-                                        data=file,
-                                        file_name="mein_viraler_short.mp4",
-                                        mime="video/mp4"
-                                    )
+                                st.rerun() # Seite neu laden, um die Ergebnisse aus dem State anzuzeigen
 
                             except Exception as e:
                                 st.error(f"Fehler bei der Verarbeitung: {e}")
                             
                             finally:
-                                # Sicheres Löschen aller temporären Dateien
+                                # Sicheres Löschen aller temporären Dateien auf dem Server
                                 for temp_file in [audio_filename, video_filename, output_filename]:
                                     if os.path.exists(temp_file):
                                         try: os.remove(temp_file)
                                         except: pass
+                
+                # --- ERGEBNIS-ANZEIGE (Bleibt dank Session State beim Download aktiv!) ---
+                if st.session_state.generation_results is not None:
+                    res = st.session_state.generation_results
+                    
+                    st.markdown("---")
+                    st.success("🎉 Dein Short im Hochformat (9:16) ist fertig!")
+                    
+                    # Vorschau des fertig generierten Videos anzeigen
+                    st.video(res["video_bytes"])
+                    
+                    st.markdown("### 📝 Textvorlage für deinen Post")
+                    st.write("**Beschreibung (Caption):**")
+                    st.code(res["caption"], language="text")
+                    
+                    st.write("**Hashtags:**")
+                    st.code(res["hashtags"], language="text")
+                    
+                    st.info(f"💡 **Warum das viral geht:** {res['begruendung']}")
+                    st.markdown("---")
+                    
+                    # Download-Button nutzt jetzt die gesicherten Bytes aus dem State
+                    st.download_button(
+                        label="📥 Short jetzt herunterladen (MP4)",
+                        data=res["video_bytes"],
+                        file_name="mein_viraler_short.mp4",
+                        mime="video/mp4"
+                    )
             else:
                 # --- DIE PAYWALL ---
                 st.markdown("---")
