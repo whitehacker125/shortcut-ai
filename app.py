@@ -1,9 +1,10 @@
 import streamlit as st
-import yt_dlp
 import os
 import google.genai as genai
 import subprocess
 import re
+import requests
+# Import für die Google Sheets Verbindung
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 
@@ -30,13 +31,16 @@ if user_email:
         st.error("Bitte gib eine gültige E-Mail-Adresse ein!")
     else:
         try:
+            # Verbindung zum Google Sheet herstellen
             conn = st.connection("gsheets", type=GSheetsConnection)
-            df = conn.read(ttl=0)
+            df = conn.read(ttl=0) # Immer live laden
             
+            # Überprüfen, ob der Nutzer schon existiert
             if user_email in df['email'].values:
                 user_row = df[df['email'] == user_email]
                 videos_left = int(user_row['videos_left'].values[0])
             else:
+                # Neuer Nutzer -> Registrieren
                 new_user = pd.DataFrame([{"email": user_email, "videos_left": 2}])
                 df = pd.concat([df, new_user], ignore_index=True)
                 conn.update(data=df)
@@ -44,9 +48,11 @@ if user_email:
                 st.balloons()
                 st.success(f"Willkommen! Deine E-Mail wurde registriert. Du hast **{videos_left} Gratis-Videos** übrig.")
 
+            # Status-Anzeige für den Nutzer
             if videos_left > 0:
                 st.info(f"🎈 Du hast noch **{videos_left} von 2** Gratis-Videos übrig.")
                 
+                # --- HIER STARTET DIE EIGENTLICHE APP ---
                 st.markdown("---")
                 video_url = st.text_input("🔗 Dein YouTube-Video-Link:", placeholder="https://www.youtube.com/watch?v=...")
 
@@ -60,34 +66,49 @@ if user_email:
                             output_filename = "output_short.mp4"
                             
                             try:
-                                # 1. Audio laden mit aggressivem Anti-Bot-Bypass
-                                st.write("⏳ Extrahiere Tonspur (Anti-Sperren-Modus)...")
-                                ydl_opts_audio = {
-    'format': 'bestaudio/best', 
-    'outtmpl': 'temp_audio.%(ext)s',
-    'postprocessors': [{
-        'key': 'FFmpegExtractAudio',
-        'preferredcodec': 'm4a',
-    }],
-    'noplaylist': True,
-    'overwrites': True,
-    'nocheckcertificate': True,
-    'source_address': '0.0.0.0',
-    'http_headers': {
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15',
-    },
-    'extractor_args': {
-        'youtube': {
-            # WICHTIG: -tv verbannt den DRM-Client, wir weichen auf safari & embedded aus
-            'player_client': ['default', '-tv', 'web_safari', 'web_embedded'],
-            'player_js_version': 'actual'
-        }
-    },
-}
-                                with yt_dlp.YoutubeDL(ydl_opts_audio) as ydl:
-                                    ydl.download([video_url])
+                                # 1. Audio & Video über Cobalt API anfordern
+                                st.write("📥 Lade Video sicher über API herunter (Bypassing Blocks)...")
                                 
-                                # 2. Gemini 3.5 Analyse
+                                # Cobalt API-Anfrage stellen
+                                cobalt_url = "https://api.cobalt.tools/api/json"
+                                headers = {
+                                    "Accept": "application/json",
+                                    "Content-Type": "application/json"
+                                }
+                                # Wir fordern das Video in max. 1080p an
+                                payload = {
+                                    "url": video_url,
+                                    "vQuality": "1080"
+                                }
+                                
+                                response = requests.post(cobalt_url, json=payload, headers=headers)
+                                response_data = response.json()
+                                
+                                if response.status_code != 200 or response_data.get("status") == "error":
+                                    raise Exception(response_data.get("text", "Unbekannter API-Fehler bei Cobalt."))
+                                
+                                download_url = response_data.get("url")
+                                if not download_url:
+                                    raise Exception("Keine Download-URL von der API erhalten.")
+                                
+                                # Herunterladen der Datei vom Cobalt-Spiegelserver auf unseren Streamlit-Server
+                                r = requests.get(download_url, stream=True)
+                                with open(video_filename, 'wb') as f:
+                                    for chunk in r.iter_content(chunk_size=1024*1024):
+                                        if chunk:
+                                            f.write(chunk)
+                                            
+                                # 2. Die Tonspur für Gemini extrahieren (da wir das Video schon haben, extrahieren wir Audio lokal!)
+                                st.write("⏳ Extrahiere Tonspur lokal...")
+                                audio_extract_cmd = [
+                                    ffmpeg_bin, "-y",
+                                    "-i", video_filename,
+                                    "-vn", "-acodec", "copy",
+                                    audio_filename
+                                ]
+                                subprocess.run(audio_extract_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+                                
+                                # 3. Gemini 3.5 Analyse
                                 st.write("🧠 KI sucht das Highlight und schreibt die Caption...")
                                 client = genai.Client(api_key=DEIN_GEMINI_API_KEY)
                                 audio_file = client.files.upload(file=audio_filename)
@@ -131,30 +152,6 @@ if user_email:
                                         begruendung = line.replace("BEGRUENDUNG:", "").strip()
 
                                 duration = end_sec - start_sec
-
-                                # 3. Video laden mit aggressivem Anti-Bot-Bypass
-                                st.write("📥 Lade Video-Spur herunter...")
-                                ydl_opts_video = {
-    'format': 'bestvideo[height<=1080]+bestaudio/best[height<=1080]/best',
-    'outtmpl': video_filename,
-    'merge_output_format': 'mp4',
-    'noplaylist': True,
-    'overwrites': True,
-    'nocheckcertificate': True,
-    'source_address': '0.0.0.0',
-    'http_headers': {
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15',
-    },
-    'extractor_args': {
-        'youtube': {
-            # Gleiche DRM-Abwehr wie beim Audio-Download
-            'player_client': ['default', '-tv', 'web_safari', 'web_embedded'],
-            'player_js_version': 'actual'
-        }
-    },
-}
-                                with yt_dlp.YoutubeDL(ydl_opts_video) as ydl:
-                                    ydl.download([video_url])
 
                                 # 4. FFmpeg Schnitt & Zoom (auf Linux)
                                 st.write("✂️ Schneide Video und zoome auf 9:16 Hochformat...")
@@ -205,6 +202,7 @@ if user_email:
                                         try: os.remove(temp_file)
                                         except: pass
             else:
+                # --- DIE PAYWALL ---
                 st.markdown("---")
                 st.error("⚠️ **Dein Gratis-Limit ist erreicht!**")
                 st.markdown(
