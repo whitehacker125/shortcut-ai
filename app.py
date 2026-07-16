@@ -307,18 +307,16 @@ if user_email:
                         mime="video/mp4"
                     )
             else:
-                # --- DIE PAYWALLS (FÜR DEUTSCH UND ENGLISCH) ---
+                # --- DIE NEUE, SAUBERE COPECART-PAYWALL ---
                 st.markdown("---")
                 st.error(t["paywall_title"])
                 st.markdown(t["paywall_text"])
                 
-                col1, col2 = st.columns(2)
-                with col1:
-                    # HIER DEINEN COPECART/DIGISTORE-LINK EINTRAGEN
-                    st.link_button(t["paywall_btn_de"], "https://www.copecart.com/products/DEIN_PRODUKT_ID/checkout", type="primary")
-                with col2:
-                    # HIER DEINEN LEMON SQUEEZY LINK EINTRAGEN
-                    st.link_button(t["paywall_btn_en"], "https://deinefirmade.lemonsqueezy.com/checkout/buy/PRODUKT_ID", type="secondary")
+                # Nur noch ein einziger, sprachlich angepasster Button zu CopeCart!
+                checkout_button_text = "💎 Get Access Now (PayPal / Card / SEPA)" if language == "English 🇬🇧" else "💎 Jetzt unbegrenzten Zugang sichern (PayPal / Lastschrift / Kreditkarte)"
+                
+                # Füge hier einfach deinen CopeCart Checkout-Link ein
+                st.link_button(checkout_button_text, "https://copecart.com/products/3cb583cd/checkout", type="primary", use_container_width=True)
 
         except Exception as database_error:
             st.error(f"{t['db_error']} ({database_error})")
